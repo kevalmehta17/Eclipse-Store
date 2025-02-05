@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import { redis } from "../lib/redis.js";
 import jwt from "jsonwebtoken";
 
+//this function generates access and refresh tokens for the user authentication.
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
     expiresIn: "15m",
@@ -12,16 +13,17 @@ const generateTokens = (userId) => {
   });
   return { accessToken, refreshToken };
 };
-
+// used to store the refresh token in Redis.
 const storeRefreshToken = async (userId, refreshToken) => {
   await redis.set(
-    `refreshToken:${userId}`,
+    `refresh_token:${userId}`, //It ensures each user gets a unique key.
     refreshToken,
     "EX",
     7 * 24 * 60 * 60
   );
 };
 
+// used to set the access and refresh tokens in the cookies in browser.
 const setCookies = (res, accessToken, refreshToken) => {
   res.cookie("accessToken", accessToken, {
     maxAge: 15 * 60 * 1000, //15 minutes
@@ -40,6 +42,13 @@ const setCookies = (res, accessToken, refreshToken) => {
 export const signup = async (req, res) => {
   const { email, password, name } = req.body;
   try {
+    //email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid Email Format" }); // 400 Bad Request
+    }
     const userAlreadyExist = await User.findOne({ email });
     if (userAlreadyExist) {
       return res
@@ -49,17 +58,14 @@ export const signup = async (req, res) => {
     const user = await User.create({ name, email, password });
 
     const { accessToken, refreshToken } = generateTokens(user._id);
-    await storeRefreshToken(user._id, refreshToken);
-    setCookies(res, accessToken, refreshToken);
+    await storeRefreshToken(user._id, refreshToken); //store refresh token in Redis
+    setCookies(res, accessToken, refreshToken); //set access and refresh tokens in cookies
 
     res.status(201).json({
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-      message: "User Created Successfully",
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
     });
   } catch (error) {
     console.error("Error: ", error);
@@ -71,14 +77,45 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.find({ email });
+    const user = await User.findOne({ email });
     if (!user) {
       return res
         .status(400)
         .json({ success: false, message: "User not found" });
     }
-    // if(user && (await user.comparePassword(password)))
-  } catch (error) {}
+    if (user && (await user.comparePassword(password))) {
+      const { accessToken, refreshToken } = generateTokens(user._id);
+      await storeRefreshToken(user._id, refreshToken); //store refresh token in Redis
+      setCookies(res, accessToken, refreshToken);
+
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      });
+    }
+  } catch (error) {
+    console.log("Error: ", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
 };
 
-export const logout = async (req, res) => {};
+export const logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    if (refreshToken) {
+      const decoded = jwt.verify(
+        refreshToken,
+        process.env.REFRESH_TOKEN_SECRET
+      );
+      await redis.del(`refresh_token:${decoded.userId}`);
+    }
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+    res.status(200).json({ success: true, message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Error: ", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
