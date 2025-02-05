@@ -94,6 +94,10 @@ export const login = async (req, res) => {
         email: user.email,
         role: user.role,
       });
+    } else {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid Email or Password" });
     }
   } catch (error) {
     console.log("Error: ", error);
@@ -114,6 +118,41 @@ export const logout = async (req, res) => {
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
     res.status(200).json({ success: true, message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Error: ", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Unauthenticated" });
+    } // 401 Unauthorized
+
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
+    //check if the stored token in Redis is the same as the token in the cookie
+    if (refreshToken !== storedToken) {
+      res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
+    //After the token is verified, generate a new access token for the user and send it in the response.
+    const accessToken = jwt.sign(
+      { userId: decoded.userId },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.cookie("accessToken", accessToken, {
+      maxAge: 15 * 60 * 1000,
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+    });
+    res.json({ success: true, message: "Token refreshed SuccessFully" });
   } catch (error) {
     console.error("Error: ", error);
     res.status(500).json({ success: false, message: error.message });
