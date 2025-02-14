@@ -100,5 +100,15 @@ export const getRecommendedProducts = async (req, res) => {
     console.log("Error in getRecommendedProducts controller", error.message);
     res.status(500).json({ message: error.message });
   }
+}
 
+export const getProductByCategory = async (req, res) => {
+  const { category } = req.params; //get the category from the params of the request
+  try {
+    const products = await Product.find({ category });
+    res.json(products);
+  } catch (error) {
+    console.log("Error in getProductByCategory controller", error.message);
+    res.status(500).json({ message: error.message });
+  }
 }
