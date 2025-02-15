@@ -4,9 +4,10 @@ export const getCartProducts = async (req, res) => {
     try {
         const user = req.user; //get the current user from the token
         const products = await Product.find({ _id: { $in: user.cartItems } });
+        //map through the products array and add the quantity of each product from the cartItems array
         const cartItems = products.map((product) => {
-            const item = user.cartItems.find((item) => item.id === product.id);
-            return { ...product.JSON(), quantity: item.quantity };
+            const item = user.cartItems.find((cartItem) => cartItem.id === product.id);
+            return { ...product.toJSON(), quantity: item.quantity };
         })
         res.json(cartItems);
     } catch (error) {
