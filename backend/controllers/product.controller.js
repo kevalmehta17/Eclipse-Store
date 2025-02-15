@@ -121,7 +121,7 @@ export const toggleFeaturedProduct = async (req, res) => {
     }
     product.isFeatured = !product.isFeatured; //this will true/false the featured Product
     const updatedProduct = await product.save(); //save the updated product in mongoDB
-    await updateFeaturedProductsCache();
+    await updateFeaturedProductsCache(); //update the featured products in redis
     res.json(updatedProduct);
 
   } catch (error) {
