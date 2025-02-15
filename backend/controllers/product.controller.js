@@ -16,7 +16,7 @@ export const getFeaturedProducts = async (req, res) => {
   try {
     let featuredProducts = await redis.get("featured_products");
     if (featuredProducts) {
-      return res.json(JSON.parse(featuredProducts))
+      return res.json(JSON.parse(featuredProducts)) //convert string to object coming from redis
     }
     //if not from redis then fetched from the mongoDB
     //.lean() is used to get the plain JS object instead of mongoose object
@@ -25,7 +25,7 @@ export const getFeaturedProducts = async (req, res) => {
       return res.status(404).json({ message: "Featured products not found" });
     }
     //store in redis for quick access
-    await redis.set("featured_products", JSON.stringify(featuredProducts));
+    await redis.set("featured_products", JSON.stringify(featuredProducts)); //convert object to string to store in redis
     res.json(featuredProducts);
   } catch (error) {
     console.log("Error in product controller", error.message);
@@ -110,5 +110,33 @@ export const getProductByCategory = async (req, res) => {
   } catch (error) {
     console.log("Error in getProductByCategory controller", error.message);
     res.status(500).json({ message: error.message });
+  }
+}
+
+export const toggleFeaturedProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      res.status(404).json({ message: "Product not found" });
+    }
+    product.isFeatured = !product.isFeatured; //this will true/false the featured Product
+    const updatedProduct = await product.save(); //save the updated product in mongoDB
+    await updateFeaturedProductsCache();
+    res.json(updatedProduct);
+
+  } catch (error) {
+    console.log("Error in toggleFeaturedProduct controller", error.message);
+    res.status(500).json({ message: error.message });
+  }
+}
+
+async function updateFeaturedProductsCache() {
+  try {
+    //get the featured products from the mongoDB
+    const featuredProducts = await Product.find({ isFeatured: true }).lean();
+    //And then updated featured Product store the in redis
+    await redis.set("featured_products", JSON.stringify())
+  } catch (error) {
+    console.log("Error in updatedFeaturedProductsCache", error.message);
   }
 }
