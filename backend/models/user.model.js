@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema(
         product: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Product",
-          required: [true, "Product is required"],
+          // required: [true, "Product is required"],
         },
       },
     ],
