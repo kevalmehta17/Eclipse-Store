@@ -24,3 +24,46 @@ export const getAnalytics = async () => {
         totalRevenue
     }
 }
+//this will return last 7 days data for chart in the dashboard
+export const getDailySaleData = async (startDate, endDate) => {
+    const dailySalesData = await Order.aggregate([
+        {
+            //filter the data between startDate and endDate
+            $match: {
+                createdAt: {
+                    $gte: startDate,
+                    $lt: endDate
+                }
+            }
+        },
+        {
+            $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                sales: { $sum: 1 },
+                revenue: { $sum: "$totalAmount" }
+            }
+        }, {
+            $sort: { _id: 1 } //1 means ascending order (oldest to newest)
+        }
+    ])
+}
+//example
+// [
+//     { "_id": "2024-02-10", "sales": 5, "revenue": 500 },
+//     { "_id": "2024-02-08", "sales": 3, "revenue": 300 },
+//     { "_id": "2024-02-09", "sales": 7, "revenue": 700 }
+//   ]
+
+function getDateRange(startDate, endDate) {
+    const dates = [];
+
+    let currentDate = startDate;
+
+    while (currentDate <= endDate) {
+        dates.push(currentDate.toISOString().split('T')[0]);
+        //example:- 2024-02-10T00:00:00.000Z => 2024-02-10
+
+        currentDate.setDate(currentDate.getDate() + 1);
+        //example:- 2024-02-10 => 2024-02-11 ~ increase & set the currentDate 
+    }
+}
