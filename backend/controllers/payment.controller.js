@@ -110,6 +110,7 @@ export const checkoutSuccess = async (req, res) => {
                 })
             }
             //create a new order in database
+            //convert back to obj to store in db
             const products = JSON.parse(session.metadata.products);
             const newOrder = new Order({
                 user: session.metadata.userId,
