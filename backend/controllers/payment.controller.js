@@ -1,5 +1,6 @@
 import { stripe } from "../lib/stripe.js";
 import Coupon from "../models/coupon.model.js";
+import Order from "../models/order.model.js";
 
 // Controller to create a checkout session
 export const createCheckoutSession = async (req, res) => {
@@ -71,6 +72,14 @@ export const createCheckoutSession = async (req, res) => {
             metadata: {
                 userId: req.user._id.toString(), // Store user ID
                 couponCode: couponCode || "",   // Store coupon code (if provided)
+                // Store product IDs, quantities, and prices in metadata & it supports the string only
+                products: JSON.stringify(
+                    products.map(p => ({
+                        id: p._id,
+                        quantity: p.quantity,
+                        price: p.price,
+                    }))
+                )
             }
         });
 
@@ -88,6 +97,42 @@ export const createCheckoutSession = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+export const checkoutSuccess = async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        const session = await stripe.checkout.sessions.retrieve(sessionId); //this will retrieve the session from stripe
+        if (session.payment_status === "paid") {
+            if (session.metadata.couponCode) {
+                // Update the coupon status to inactive coupon after successful payment
+                await Coupon.findOneAndUpdate({ code: session.metadata.couponCode, userId: session.metadata.userId }, {
+                    isActive: false
+                })
+            }
+            //create a new order in database
+            const products = JSON.parse(session.metadata.products);
+            const newOrder = new Order({
+                user: session.metadata.userId,
+                products: products.map(product => ({
+                    product: product.id,
+                    quantity: product.quantity,
+                    price: product.price
+                })),
+                totalAmount: session.amount_total / 100,//convert to cents
+                stripeSessionId: sessionId
+            })
+            await newOrder.save();
+            res.status(200).json({
+                success: true,
+                message: "Payment SuccessFul,order Created and Coupon deactivated if used."
+            })
+
+        }
+    } catch (error) {
+        console.log("Error in checkoutSuccess:", error.message);
+        res.status(500).json({ message: error.message });
+    }
+}
 
 // **Helper Function: Create a Stripe Coupon (Applies to First Purchase if Entered)**
 async function createStripeCoupon(discountPercentage) {
