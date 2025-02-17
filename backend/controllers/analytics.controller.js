@@ -36,49 +36,53 @@ export const getAnalytics = async () => {
 
 // Function to fetch daily sales and revenue between startDate and endDate
 export const getDailySaleData = async (startDate, endDate) => {
-
-    const dailySalesData = await Order.aggregate([
-        {
-            // Filter orders based on createdAt date range
-            $match: {
-                createdAt: {
-                    $gte: startDate, // Greater than or equal to startDate
-                    $lt: endDate     // Less than endDate
+    try {
+        const dailySalesData = await Order.aggregate([
+            {
+                // Filter orders based on createdAt date range
+                $match: {
+                    createdAt: {
+                        $gte: startDate, // Greater than or equal to startDate
+                        $lt: endDate     // Less than endDate
+                    }
                 }
+            },
+            {
+                // Group orders by date and calculate total sales and revenue per day
+                $group: {
+                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                    sales: { $sum: 1 },
+                    revenue: { $sum: "$totalAmount" }
+                }
+            },
+            {
+                $sort: { _id: 1 } // Sort results in ascending order (oldest to newest)
             }
-        },
-        {
-            // Group orders by date and calculate total sales and revenue per day
-            $group: {
-                _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                sales: { $sum: 1 },
-                revenue: { $sum: "$totalAmount" }
-            }
-        },
-        {
-            $sort: { _id: 1 } // Sort results in ascending order (oldest to newest)
-        }
-    ]);
+        ]);
 
-    // Example output of dailySalesData:
-    // [
-    //     { "_id": "2024-02-10", "sales": 5, "revenue": 500 },
-    //     { "_id": "2024-02-08", "sales": 3, "revenue": 300 },
-    //     { "_id": "2024-02-09", "sales": 7, "revenue": 700 }
-    // ]
+        // Example output of dailySalesData:
+        // [
+        //     { "_id": "2024-02-10", "sales": 5, "revenue": 500 },
+        //     { "_id": "2024-02-08", "sales": 3, "revenue": 300 },
+        //     { "_id": "2024-02-09", "sales": 7, "revenue": 700 }
+        // ]
 
-    // Generate an array of all dates between startDate and endDate
-    const dateArray = getDateRange(startDate, endDate);
+        // Generate an array of all dates between startDate and endDate
+        const dateArray = getDateRange(startDate, endDate);
 
-    // Map through each date and return sales & revenue (default to 0 if data is missing)
-    return dateArray.map(date => {
-        const foundData = dailySalesData.find(item => item._id === date);
-        return {
-            date, // Current date in YYYY-MM-DD format
-            sales: foundData?.sales || 0, // Use 0 if no sales data exists
-            revenue: foundData?.revenue || 0 // Use 0 if no revenue data exists
-        };
-    });
+        // Map through each date and return sales & revenue (default to 0 if data is missing)
+        return dateArray.map(date => {
+            const foundData = dailySalesData.find(item => item._id === date);
+            return {
+                date, // Current date in YYYY-MM-DD format
+                sales: foundData?.sales || 0, // Use 0 if no sales data exists
+                revenue: foundData?.revenue || 0 // Use 0 if no revenue data exists
+            };
+        });
+    } catch (error) {
+        console.log("Error in getDailySaleData: ", error.message);
+        throw error;
+    }
 };
 
 // Function to generate an array of dates between startDate and endDate
